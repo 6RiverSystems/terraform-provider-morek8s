@@ -44,20 +44,9 @@ func resourceFromStr() *schema.Resource {
 
 		CustomizeDiff: customdiff.All(
 			// Set ForceNew to true if namespace or name is changed
-			customdiff.ForceNewIfChange("data", func(old, new, meta interface{}) bool {
-				oldU, _ := expandResourceFromStr(old.(string))
-				newU, _ := expandResourceFromStr(new.(string))
-				return oldU.GetName() != newU.GetName() || oldU.GetNamespace() != newU.GetNamespace()
-			}),
+			customdiff.ForceNewIfChange("data", nameChanged),
 		),
 	}
-}
-
-func buildID(namespace, name string) string {
-	if namespace == "" {
-		namespace = "default"
-	}
-	return fmt.Sprintf("%s/%s", namespace, name)
 }
 
 func resourceFromStrCreate(d *schema.ResourceData, m interface{}) error {
@@ -68,7 +57,6 @@ func resourceFromStrCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	cl := m.(client.Client)
-	namespace, name := u.GetNamespace(), u.GetName()
 
 	log.Printf("[INFO] Creating new k8s resource: %#v", u)
 
@@ -85,7 +73,7 @@ func resourceFromStrCreate(d *schema.ResourceData, m interface{}) error {
 
 	log.Printf("[INFO] Submitted new k8s resource: %#v", u)
 
-	d.SetId(buildID(namespace, name))
+	d.SetId(buildID(&u))
 
 	return resourceFromStrRead(d, m)
 }

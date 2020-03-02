@@ -10,8 +10,8 @@ resource "morek8s_from_str" "my-embedded-secret" {
     "apiVersion": "v1",
     "data": {
         "password": "MWYyZDFlMmU2N2Rm",
-        "username": "YWRtaW4="
     },
+        "username": "YWRtaW4="
     "kind": "Secret",
     "metadata": {
         "name": "my-embedded-secret",

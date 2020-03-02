@@ -6,12 +6,32 @@ import (
 	"io"
 	"io/ioutil"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 )
+
+func getNamespace(obj metav1.Object) string {
+	ns := obj.GetNamespace()
+	if ns == "" {
+		return "default"
+	}
+	return ns
+}
+
+func buildID(obj metav1.Object) string {
+	return fmt.Sprintf("%s/%s", getNamespace(obj), obj.GetName())
+}
+
+func nameChanged(old, new, meta interface{}) bool {
+	// ignore errors. If any exist they should be catched by validator function.
+	oldU, _ := expandResourceFromStr(old.(string))
+	newU, _ := expandResourceFromStr(new.(string))
+	return buildID(&newU) != buildID(&oldU)
+}
 
 func decode(in string) (unstructured.Unstructured, error) {
 	yamlDecoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
