@@ -6,12 +6,15 @@ import (
 	"io"
 	"io/ioutil"
 
+	"github.com/6RiverSystems/terraform-provider-helpers/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func getNamespace(obj metav1.Object) string {
@@ -26,7 +29,15 @@ func buildID(obj metav1.Object) string {
 	return fmt.Sprintf("%s/%s", getNamespace(obj), obj.GetName())
 }
 
-func nameChanged(old, new, meta interface{}) bool {
+func idToKey(id string) (client.ObjectKey, error) {
+	namespace, name, err := kubernetes.IDParts(id)
+	if err != nil {
+		return client.ObjectKey{}, err
+	}
+	return types.NamespacedName{Namespace: namespace, Name: name}, nil
+}
+
+func namespacedNameChanged(old, new, meta interface{}) bool {
 	// ignore errors. If any exist they should be catched by validator function.
 	oldU, _ := expandResourceFromStr(old.(string))
 	newU, _ := expandResourceFromStr(new.(string))

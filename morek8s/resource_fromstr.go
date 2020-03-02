@@ -6,13 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/6RiverSystems/terraform-provider-helpers/kubernetes"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -44,7 +42,7 @@ func resourceFromStr() *schema.Resource {
 
 		CustomizeDiff: customdiff.All(
 			// Set ForceNew to true if namespace or name is changed
-			customdiff.ForceNewIfChange("data", nameChanged),
+			customdiff.ForceNewIfChange("data", namespacedNameChanged),
 		),
 	}
 }
@@ -90,17 +88,17 @@ func resourceFromStrUpdate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	namespace, name, err := kubernetes.IDParts(d.Id())
+	key, err := idToKey(d.Id())
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[INFO] Updating k8s resource %s", name)
+	log.Printf("[INFO] Updating k8s resource %s", d.Id())
 
 	found := unstructured.Unstructured{}
 	found.SetGroupVersionKind(u.GetObjectKind().GroupVersionKind())
 	cl := m.(client.Client)
-	err = cl.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, &found)
+	err = cl.Get(context.TODO(), key, &found)
 	if err != nil {
 		log.Printf("[DEBUG] Received error: %#v", err)
 		return err
@@ -123,17 +121,17 @@ func resourceFromStrDelete(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	namespace, name, err := kubernetes.IDParts(d.Id())
+	key, err := idToKey(d.Id())
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[INFO] Deleting k8s resource %s", name)
+	log.Printf("[INFO] Deleting k8s resource %s", d.Id())
 
 	found := unstructured.Unstructured{}
 	found.SetGroupVersionKind(u.GetObjectKind().GroupVersionKind())
 	cl := m.(client.Client)
-	err = cl.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, &found)
+	err = cl.Get(context.TODO(), key, &found)
 	if err != nil {
 		log.Printf("[DEBUG] Received error: %#v", err)
 		return err
@@ -145,7 +143,7 @@ func resourceFromStrDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if err := resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
-		err := cl.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, &found)
+		err := cl.Get(context.TODO(), key, &found)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -153,13 +151,13 @@ func resourceFromStrDelete(d *schema.ResourceData, m interface{}) error {
 			return resource.NonRetryableError(err)
 		}
 
-		e := fmt.Errorf("k8s resource %s still exists", name)
+		e := fmt.Errorf("k8s resource %s still exists", d.Id())
 		return resource.RetryableError(e)
 	}); err != nil {
 		return err
 	}
 
-	log.Printf("[INFO] l8s resource deleted %s", name)
+	log.Printf("[INFO] k8s resource deleted %s", d.Id())
 	return nil
 }
 
@@ -170,17 +168,17 @@ func resourceFromStrExists(d *schema.ResourceData, m interface{}) (bool, error) 
 		return false, err
 	}
 
-	namespace, name, err := kubernetes.IDParts(d.Id())
+	key, err := idToKey(d.Id())
 	if err != nil {
 		return false, err
 	}
 
-	log.Printf("[INFO] Checking resource exists %s/%s", namespace, name)
+	log.Printf("[INFO] Checking resource exists %s", d.Id())
 
 	var found unstructured.Unstructured
 	found.SetGroupVersionKind(u.GetObjectKind().GroupVersionKind())
 	cl := m.(client.Client)
-	err = cl.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, &found)
+	err = cl.Get(context.TODO(), key, &found)
 
 	if err != nil && errors.IsNotFound(err) {
 		return false, nil
