@@ -2,6 +2,7 @@
 terraform.tfstate
 terraform.tfstate.backup
 terraform-provider-morek8s*
+build
 *.log
 /main.tf
 /*.yaml
