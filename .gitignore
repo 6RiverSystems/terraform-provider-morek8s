@@ -1,0 +1,7 @@
+.terraform
+terraform.tfstate
+terraform.tfstate.backup
+terraform-provider-morek8s*
+*.log
+/main.tf
+/*.yaml
