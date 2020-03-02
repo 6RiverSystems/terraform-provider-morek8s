@@ -33,3 +33,29 @@ resource "morek8s_from_str" "my-embedded-secret" {
 }
 
 ```
+
+Primary used with CRDs.
+
+## Running Unit Tests
+
+```
+make test
+```
+
+## Running Acceptance Tests
+
+```
+make testacc
+```
+
+to run acceptance tests using your kube config:
+
+```
+KUBE_CONFIG=~/.kube/config make testacc
+```
+
+## Debugging Tests
+
+```
+KUBE_CONFIG=~/.kube/config TF_ACC=1 dlv test -- -test.run=TestAccResourceFromStr_basic -test.v
+```

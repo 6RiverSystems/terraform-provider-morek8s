@@ -20,15 +20,14 @@ func resourceFromStr() *schema.Resource {
 		Read:   resourceFromStrRead,
 		Update: resourceFromStrUpdate,
 		Delete: resourceFromStrDelete,
-		Exists: resourceFromStrExists,
 
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
 
 		Timeouts: &schema.ResourceTimeout{
-			Create: schema.DefaultTimeout(5 * time.Minute),
-			Delete: schema.DefaultTimeout(5 * time.Minute),
+			Create: schema.DefaultTimeout(10 * time.Second),
+			Delete: schema.DefaultTimeout(10 * time.Second),
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -63,7 +62,7 @@ func resourceFromStrCreate(d *schema.ResourceData, m interface{}) error {
 		if err == nil {
 			return nil
 		}
-		e := fmt.Errorf("failed to create k8s resource %#v", u)
+		e := fmt.Errorf("failed to create k8s resource %#v, %s", u, err)
 		return resource.RetryableError(e)
 	}); err != nil {
 		return err
@@ -77,7 +76,36 @@ func resourceFromStrCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceFromStrRead(d *schema.ResourceData, m interface{}) error {
-	// It's tricky to do, but might be possible
+	data := d.Get("data").(string)
+	u, err := expandResourceFromStr(data)
+	if err != nil {
+		return err
+	}
+
+	key, err := idToKey(d.Id())
+	if err != nil {
+		return err
+	}
+
+	log.Printf("[INFO] Reading k8s resource %s", d.Id())
+
+	found := unstructured.Unstructured{}
+	found.SetGroupVersionKind(u.GetObjectKind().GroupVersionKind())
+	cl := m.(client.Client)
+	err = cl.Get(context.TODO(), key, &found)
+
+	if err != nil {
+		// If the resource does not exist, inform Terraform. We want to immediately
+		// return here to prevent further processing
+		if errors.IsNotFound(err) {
+			d.SetId("")
+			return nil
+		}
+		log.Printf("[DEBUG] Received error: %#v", err)
+		return err
+	}
+
+	log.Printf("[INFO] Received k8s resource: %#v", found)
 	return nil
 }
 
@@ -159,34 +187,4 @@ func resourceFromStrDelete(d *schema.ResourceData, m interface{}) error {
 
 	log.Printf("[INFO] k8s resource deleted %s", d.Id())
 	return nil
-}
-
-func resourceFromStrExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	data := d.Get("data").(string)
-	u, err := expandResourceFromStr(data)
-	if err != nil {
-		return false, err
-	}
-
-	key, err := idToKey(d.Id())
-	if err != nil {
-		return false, err
-	}
-
-	log.Printf("[INFO] Checking resource exists %s", d.Id())
-
-	var found unstructured.Unstructured
-	found.SetGroupVersionKind(u.GetObjectKind().GroupVersionKind())
-	cl := m.(client.Client)
-	err = cl.Get(context.TODO(), key, &found)
-
-	if err != nil && errors.IsNotFound(err) {
-		return false, nil
-	}
-
-	if err != nil {
-		log.Printf("[DEBUG] Received error: %#v", err)
-	}
-
-	return true, nil
 }
